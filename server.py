@@ -7,31 +7,33 @@ class Database(object):
 
     def __init__(self, path='contacts.db'):
         self.path = path
-        self.conn = sqlite3.connect('contacts.db')
 
     def create_contacts_table(self):
-        cursor = self.conn.cursor()
-        cursor.execute('''CREATE TABLE contacts
-                            (name text, address text, phone text, email text, source text, key text)''')
-        self.conn.commit()
+        with sqlite3.connect(self.path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''CREATE TABLE contacts
+                                (name text, address text, phone text, email text, source text, key text)''')
+            conn.commit()
 
     def write_contact(self, contact):
-        cursor = self.conn.cursor()
-        cursor.execute("INSERT INTO contacts VALUES (?,?,?,?,?,?)", 
-            (contact.name, contact.address, contact.phone, contact.email,
-            contact.source, contact.key))
-        self.conn.commit()        
+        with sqlite3.connect(self.path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO contacts VALUES (?,?,?,?,?,?)",
+                (contact.name, contact.address, contact.phone, contact.email,
+                contact.source, contact.key))
+            conn.commit()
 
     def get_contacts(self, source):
-        cursor = self.conn.cursor()
-        print(source)
-        raw_contacts = cursor.execute(
-            'SELECT name, address, phone, email, source, key from contacts WHERE source=?', 
-            (source,)).fetchall()
-        contacts = []
-        for contact in raw_contacts:
-            c = Contact(*contact)
-            contacts.append(c)
+        with sqlite3.connect(self.path) as conn:
+            cursor = conn.cursor()
+            print(source)
+            raw_contacts = cursor.execute(
+                'SELECT name, address, phone, email, source, key from contacts WHERE source=?',
+                (source,)).fetchall()
+            contacts = []
+            for contact in raw_contacts:
+                c = Contact(*contact)
+                contacts.append(c)
         return contacts
 
 class MissingParameterError(Exception):
@@ -58,7 +60,10 @@ def add_contact():
     email = get_json_value('email')
     source = get_json_value('source')
     key = get_json_value('key')
-    database.write_contact(Contact(name, address, phone, email, source, key))
+    try:
+        database.write_contact(Contact(name, address, phone, email, source, key))
+    except sqlite3.ProgrammingError:
+        return jsonify(success=False)
     return jsonify(success=True)
 
 @app.route('/list_contacts', methods=['GET'])
