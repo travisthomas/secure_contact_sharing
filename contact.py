@@ -5,6 +5,7 @@ from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.backends import default_backend
 import os
 import base64
+import binascii
 
 class Contact(object):
 
@@ -56,7 +57,10 @@ class Contact(object):
         context = ContactsContext()
         for f in self.encryptable_fields:
             field = getattr(self, f).encode()
-            binary_value = base64.b64decode(field)
+            try:
+                binary_value = base64.b64decode(field)
+            except binascii.Error:
+                print('%s is invalid base64: %s' % (f, field))
             iv = binary_value[:16]
             value = binary_value[16:]
             cipher = context.new_cipher(self.get_key(), iv)
@@ -65,14 +69,18 @@ class Contact(object):
         delattr(self, 'key')
 
     def json(self):
-        return {
+        value = {
             'name' : self.name,
             'address' : self.address,
             'phone' : self.phone,
             'email' : self.email,
-            'source' : self.source,
-            'key' : self.key
+            'source' : self.source
         }
+        try: 
+            value['key'] = self.key
+        except AttributeError:
+            pass
+        return value
 
 class ContactsContext(object):
 
