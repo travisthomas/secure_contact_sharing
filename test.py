@@ -3,6 +3,7 @@
 import requests
 from contact import Contact
 from sys import exit
+from client import SecureShareClient
 
 tozny_address = '519 SW 3rd Ave suite 800, Portland, OR 97204'
 tozny_phone = '(844) 628-2872'
@@ -30,35 +31,14 @@ c['Justin'] = {
     'email' : 'justin@tozny.com'
 }
 
-contacts = []
+secure_share_client = SecureShareClient('.', 'http://127.0.0.1:5000')
+
+
 for name in c:
-    print(name)
-    contact = Contact(name, c[name]['address'], c[name]['phone'], c[name]['email'], source)
-    contact.encrypt()
-    contact.decrypt()
-    contacts.append(contact)
+    secure_share_client.post_contact(name, c[name]['address'], 
+        c[name]['phone'], c[name]['email'], source)
 
+contacts = secure_share_client.list_contacts(source)
 for contact in contacts:
-    contact.encrypt()
-    r = requests.post('http://127.0.0.1:5000/add_contact', json=contact.json())
-    print(r.json())
-
-r = requests.get('http://127.0.0.1:5000/list_contacts', params={'source' : source })
-try:
-    json = r.json()
-except json.decoder.JSONDecodeError:
-    print('Failed to list contacts!')
-    exit(1)
-print(json)
-
-returned_contacts = []
-
-for c in json:
-    returned_contacts.append(Contact(name=c['name'], address=c['address'], 
-        phone=c['phone'], email=c['email'], source=c['source'], key=c['key']))
-
-for c in returned_contacts:
-    c.decrypt()
-    print(c.json())
-
-print(returned_contacts)
+    print('%s:\n%s\n%s\n%s\n' % (contact.name, contact.address, contact.phone,
+        contact.email))
