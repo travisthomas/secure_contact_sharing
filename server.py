@@ -26,7 +26,6 @@ class Database(object):
     def get_contacts(self, source):
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
-            print(source)
             raw_contacts = cursor.execute(
                 'SELECT name, address, phone, email, source, key from contacts WHERE source=?',
                 (source,)).fetchall()
@@ -35,6 +34,11 @@ class Database(object):
                 c = Contact(*contact)
                 contacts.append(c)
         return contacts
+
+    def clear_db(self):
+        with sqlite3.connect(self.path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE from contacts')
 
 class MissingParameterError(Exception):
     
@@ -71,6 +75,11 @@ def list_contacts():
     source = get_param('source')
     contacts = database.get_contacts(source)
     return jsonify([contact.json() for contact in contacts])
+
+@app.route('/clear_db', methods=['GET'])
+def clear_db():
+    database.clear_db()
+    return 'OK'
 
 def get_json_value(key):
     try: 

@@ -42,3 +42,5 @@ contacts = secure_share_client.list_contacts(source)
 for contact in contacts:
     print('%s:\n%s\n%s\n%s\n' % (contact.name, contact.address, contact.phone,
         contact.email))
+
+secure_share_client.clear_db()

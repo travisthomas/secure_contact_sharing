@@ -17,6 +17,9 @@ class SecureShareClient(object):
     def _list_contacts_url(self):
         return '/'.join([self.server, 'list_contacts'])
 
+    def _clear_db_url(self):
+        return '/'.join([self.server, 'clear_db'])
+
     def post_contact(self, name, address, phone, email, source):
         c = Contact(name, address, phone, email, source)
         c.encrypt()
@@ -31,6 +34,9 @@ class SecureShareClient(object):
         returned_contacts = [Contact(c['name'], c['address'], c['phone'],
             c['email'], source, c['key']) for c in json]
         for c in returned_contacts:
-            print(c.name)
             c.decrypt()
         return returned_contacts
+
+    def clear_db(self):
+        r = requests.get(self._clear_db_url())
+        r.raise_for_status()
