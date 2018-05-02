@@ -41,6 +41,9 @@ class Database(object):
             cursor.execute('DELETE from contacts')
 
 class MissingParameterError(Exception):
+    """
+    http://flask.pocoo.org/docs/1.0/patterns/apierrors/
+    """
     
     def __init__(self, message, status_code=None, payload=None):
         Exception.__init__(self)
@@ -85,10 +88,12 @@ def get_json_value(key):
     try: 
         return request.get_json()[key]
     except KeyError:
-        raise MissingParameterError('Missing parameter: %s' % key)
+        raise MissingParameterError('Missing parameter: %s' % key,
+            payload={'param' : key})
 
 def get_param(p):
     try:
         return request.args.get(p)
     except KeyError:
-        raise MissingParameterError('Missing parameter: %s' % p)
+        raise MissingParameterError('Missing parameter: %s' % p,
+            payload={'param' : key})
