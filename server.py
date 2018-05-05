@@ -4,8 +4,14 @@ from ecdsa import SigningKey, VerifyingKey, NIST256p
 from functools import wraps
 from base64 import b64encode, b64decode
 from os.path import exists
-
+import logging
 import sqlite3
+
+logger = logging.getLogger('SecureContactSharing')
+logger.setLevel(logging.DEBUG)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+logger.addHandler(ch)
 
 CURVE=NIST256p
 
@@ -14,11 +20,13 @@ class Database(object):
     def __init__(self, path='contacts.db'):
         self.path = path
         if not exists(self.path):
+            logger.debug('Creating database')
             self.create_contacts_table()
             self.create_pubs_table()
             self.create_nonce_table()
 
     def create_contacts_table(self):
+        logger.debug('Creating contacts table')
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
             cursor.execute('''CREATE TABLE contacts
@@ -26,18 +34,21 @@ class Database(object):
             conn.commit()
 
     def create_pubs_table(self):
+        logger.debug('Creating pubs table')
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
             cursor.execute('''CREATE TABLE pubs (pub text, key text, value text)''')
             conn.commit()
 
     def create_nonce_table(self):
+        logger.debug('Creating nonce table')
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
             cursor.execute('''CREATE TABLE nonces (nonce text)''')
             conn.commit()
 
     def write_contact(self, contact):
+        logger.debug('Writing contact for source: %s' % contact.source)
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
             cursor.execute("INSERT INTO contacts VALUES (?,?,?,?,?,?)",
@@ -46,6 +57,7 @@ class Database(object):
             conn.commit()
 
     def get_contacts(self, source):
+        logger.debug('Getting contacts for source: %s' % source)
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
             raw_contacts = cursor.execute(
@@ -55,9 +67,11 @@ class Database(object):
             for contact in raw_contacts:
                 c = Contact(*contact)
                 contacts.append(c)
+        logger.debug(contacts)
         return contacts
 
     def clear_db(self):
+        logger.debug('Clearing tables in database: contacts, pubs, nonces')
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
             cursor.execute('DELETE from contacts')
@@ -65,6 +79,7 @@ class Database(object):
             cursor.execute('DELETE from nonces')
 
     def has_pub(self, pub):
+        logger.debug('has_pub: %s' % pub)
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
             if cursor.execute('SELECT pub from pubs where pub=?', 
@@ -82,6 +97,7 @@ class Database(object):
             conn.commit()
 
     def use_nonce(self, nonce):
+        logger.debug('use_nonce: %s' % nonce)
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
             if cursor.execute('SELECT nonce from nonces where nonce=?', 
@@ -130,6 +146,7 @@ database = Database()
 def authorized(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
+        logger.debug('Authorizing request')
         if 'Pub' not in request.headers:
             raise MissingParameterError('Missing authorization parameter: '
                 'ECDSA pub')
