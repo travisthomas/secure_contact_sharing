@@ -4,6 +4,7 @@ import requests
 from contact import Contact
 from sys import exit
 from client import SecureShareClient
+import os
 
 tozny_address = '519 SW 3rd Ave suite 800, Portland, OR 97204'
 tozny_phone = '(844) 628-2872'
@@ -31,7 +32,7 @@ c['Justin'] = {
     'email' : 'justin@tozny.com'
 }
 
-secure_share_client = SecureShareClient('.', 'http://127.0.0.1:5000')
+secure_share_client = SecureShareClient(server_url='http://127.0.0.1:5000')
 
 
 for name in c:
