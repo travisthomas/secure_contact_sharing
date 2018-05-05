@@ -28,7 +28,7 @@ class Database(object):
     def create_pubs_table(self):
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
-            cursor.execute('''CREATE TABLE pubs (pub text)''')
+            cursor.execute('''CREATE TABLE pubs (pub text, key text, value text)''')
             conn.commit()
 
     def create_nonce_table(self):
@@ -61,6 +61,8 @@ class Database(object):
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
             cursor.execute('DELETE from contacts')
+            cursor.execute('DELETE from pubs')
+            cursor.execute('DELETE from nonces')
 
     def has_pub(self, pub):
         with sqlite3.connect(self.path) as conn:
@@ -71,10 +73,12 @@ class Database(object):
             else:
                 return True
 
-    def register_pub(self, pub):
+    def register_pub(self, pub, name):
+        logger.debug('register_pub: %s - %s' % (name, pub))
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO pubs VALUES (?)", (pub,))
+            cursor.execute("INSERT INTO pubs (pub, key, value) VALUES "
+                "(?, ?, ?)", (pub, 'name', name))
             conn.commit()
 
     def use_nonce(self, nonce):
@@ -181,9 +185,10 @@ def clear_db(pub=None):
 @app.route('/register', methods=['POST'])
 def register_pub():
     pub = b64decode(get_param('pub'))
+    name = get_param('name')
     if database.has_pub(pub):
         return 'OK'
-    database.register_pub(pub)
+    database.register_pub(pub, name)
     # perhaps some error handling required???
     return 'OK'
 

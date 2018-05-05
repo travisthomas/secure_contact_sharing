@@ -10,7 +10,7 @@ CURVE=NIST256p
 
 class SecureShareClient(object):
 
-    def __init__(self, home=None, server_url='http://127.0.0.1:5000'):
+    def __init__(self, name, home=None, server_url='http://127.0.0.1:5000'):
         if home is None:
             home = os.path.join(os.environ['HOME'], '.secure_contact_sharing')
         if not os.path.exists(home):
@@ -34,13 +34,15 @@ class SecureShareClient(object):
             'register' : '/'.join([server_url, 'register'])
         }
         
+        self.name = name
         self.vk = self.sk.get_verifying_key()
         if needs_register: self.register()
 
 
     def register(self):
         r = requests.post(self.url['register'], params={
-            'pub' : b64encode(self.vk.to_string()).decode()
+            'pub' : b64encode(self.vk.to_string()).decode(),
+            'name' : self.name
         })
         r.raise_for_status()
 

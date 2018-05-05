@@ -32,7 +32,8 @@ c['Justin'] = {
     'email' : 'justin@tozny.com'
 }
 
-secure_share_client = SecureShareClient(server_url='http://127.0.0.1:5000')
+secure_share_client = SecureShareClient('TestClient', 
+    server_url='http://127.0.0.1:5000')
 
 
 for name in c:
