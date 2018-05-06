@@ -34,10 +34,12 @@ class Contact(object):
         database.write_contact(self)
 
     def encrypt(self):
-        try:
-            self.key
+        if hasattr(self, 'key'):
             raise AlreadyEncryptedError()
-        except AttributeError:
+        elif hasattr(self, '_key'):
+            self.key = self._key
+            delattr(self, '_key')
+        else:
             context = ContactsContext()
             self.set_key(context.new_key())
         for f in self.encryptable_fields:
@@ -66,6 +68,7 @@ class Contact(object):
             cipher = context.new_cipher(self.get_key(), iv)
             decryptor = cipher.decryptor()
             setattr(self, f, context.unpad(decryptor.update(value) + decryptor.finalize()).decode())
+        setattr(self, '_key', self.key)
         delattr(self, 'key')
 
     def json(self):
