@@ -90,11 +90,14 @@ class Database(object):
                 return True
 
     def register_key(self, key, name):
-        logger.debug('register_key: %s - %s' % (name, key))
+        self.insert_key(key, 'name', name)
+
+    def insert_key(self, crypto_key, key, value):
+        logger.debug('insert_key: %s: {"%s" : "%s"}')
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
             cursor.execute("INSERT INTO keys (crypto_key, key, value) VALUES "
-                "(?, ?, ?)", (key, 'name', name))
+                "(?, ?, ?)", (crypto_key, key, value))
             conn.commit()
 
     def use_nonce(self, nonce):
