@@ -73,3 +73,50 @@ class BasicTest(unittest.TestCase):
         new_num_contacts = len(self.secure_share_client.list_contacts(source))
         assert num_contacts > 3
         assert new_num_contacts == 0
+
+    def test_add_key_metadata(self):
+        self.secure_share_client.post_contact('Travis', '444 Main St.',
+            '360-888-5555', 'travisistall@gmail.com', self.id())
+        contact = self.secure_share_client.list_contacts(source=self.id())[0]
+        dek = contact._key
+        self.secure_share_client.add_key_metadata(dek, 'owner', 'Telzey')
+        self.secure_share_client.add_key_metadata(dek, 'user', 'Trigger')
+        self.secure_share_client.add_key_metadata(dek, 'user', 'Danestar')
+
+    def test_get_key_metadata(self):
+        self.secure_share_client.post_contact('Cass', '555 Main St.',
+            '360-888-7777', 'cass@gmail.com', self.id())
+        contact = self.secure_share_client.list_contacts(source=self.id())[0]
+        dek = contact._key
+        self.secure_share_client.add_key_metadata(dek, 'owner', 'Telzey')
+        self.secure_share_client.add_key_metadata(dek, 'user', 'Trigger')
+        metadata = self.secure_share_client.get_key_metadata(dek)
+        assert 'owner' in metadata
+        assert 'user' in metadata
+        assert 'Telzey' in metadata['owner']
+        assert 'Trigger' in metadata['user']
+
+    def test_remove_key_metadata(self):
+        self.secure_share_client.post_contact('Vanessa', '66 Main St.',
+            '360-888-6666', 'vanessa@gmail.com', self.id())
+        contact = self.secure_share_client.list_contacts(source=self.id())[0]
+        dek = contact._key
+        self.secure_share_client.add_key_metadata(dek, 'owner', 'Telzey')
+        self.secure_share_client.add_key_metadata(dek, 'user', 'Trigger')
+        self.secure_share_client.add_key_metadata(dek, 'user', 'Danestar')
+        metadata = self.secure_share_client.get_key_metadata(dek)
+        assert 'owner' in metadata
+        assert 'user' in metadata
+        assert 'Telzey' in metadata['owner']
+        assert 'Trigger' in metadata['user']
+        self.secure_share_client.remove_key_metadata(dek, 'user', 'Trigger')
+        metadata = self.secure_share_client.get_key_metadata(dek)
+        assert 'user' in metadata
+        assert metadata['user'] == ['Danestar',]
+        self.secure_share_client.remove_key_metadata(dek, 'owner')
+        metadata = self.secure_share_client.get_key_metadata(dek)
+        assert 'owner' not in metadata
+        self.secure_share_client.remove_key_metadata(dek)
+        metadata = self.secure_share_client.get_key_metadata(dek)
+        assert 'user' not in metadata
+        assert 'name' not in metadata
