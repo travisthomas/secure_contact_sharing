@@ -5,6 +5,9 @@ from contact import Contact
 from ecdsa import SigningKey, NIST256p, VerifyingKey
 import os
 from base64 import b64encode, b64decode
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
 
 CURVE=NIST256p
 
@@ -16,16 +19,36 @@ class SecureShareClient(object):
         if not os.path.exists(home):
             os.mkdir(home)
 
-        sk_path = os.path.join(home, 'ecdsa.priv')
+        sign_key_path = os.path.join(home, 'ecdsa.priv')
+        dec_key_path = os.path.join(home, 'rsa.priv')
         
-        if os.path.exists(sk_path):
-            self.sk = SigningKey.from_string(open(sk_path, 'rb').read(), 
+        if (os.path.exists(sign_key_path)
+                and not os.path.exists(dec_key_path)) or \
+                (os.path.exists(dec_key_path)
+                and not os.path.exists(sign_key_path)):
+            raise Exception # TODO????
+        if os.path.exists(sign_key_path) and os.path.exists(dec_key_path):
+            self.sk = SigningKey.from_string(open(sign_key_path, 'rb').read(), 
                 curve=CURVE)
+            with open(dec_key_path, mode='rb') as privatefile:
+                self.dk = serialization.load_pem_private_key(
+                    privatefile.read(), password=None, backend=default_backend()
+                )
+            self.ek = self.dk.public_key()
             needs_register = False
         else:
             self.sk = SigningKey.generate(curve=CURVE)
-            with open(sk_path, 'wb') as f:
+            with open(sign_key_path, 'wb') as f:
                 f.write(self.sk.to_string())
+            self.dk = rsa.generate_private_key(public_exponent=65537,
+                key_size=2048, backend=default_backend())
+            self.ek = self.dk.public_key()
+            with open(dec_key_path, 'wb') as f:
+                f.write(self.dk.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.NoEncryption()
+                ))
             needs_register = True
         self.url = { 
             'add_contact' :         '/'.join([server_url, 'add_contact']),
@@ -44,7 +67,10 @@ class SecureShareClient(object):
 
     def register(self):
         r = requests.post(self.url['register'], params={
-            'pub' : b64encode(self.vk.to_string()).decode(),
+            'ecdsa-pub' : b64encode(self.vk.to_string()).decode(),
+            'rsa-pub' : self.ek.public_bytes(
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+                encoding=serialization.Encoding.PEM),
             'name' : self.name
         })
         r.raise_for_status()
@@ -111,7 +137,7 @@ class ECDSAAuth(requests.auth.AuthBase):
     
     def __call__(self, r):
         vks = self.vk.to_string()
-        nonce = b64encode(os.urandom(16))
+        nonce = b64encode(os.urandom(18))
         signature = self.sk.sign(nonce)
         auth = {
             'Pub' : b64encode(vks).decode(),

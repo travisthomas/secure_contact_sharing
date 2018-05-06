@@ -83,17 +83,28 @@ class Database(object):
         logger.debug('has_key: %s' % key)
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
-            if cursor.execute('SELECT key from keys where key=?', 
-                    (key,)).fetchone() is None:
+            if cursor.execute('SELECT key from keys where key=? and '
+                    'md_name=?', (key, 'name')).fetchone() is None:
                 return False
             else:
                 return True
 
-    def register_key(self, key, name):
-        self.add_key_metadata(key, 'name', name)
+    def register_key(self, ecdsa_pub, name, rsa_pub):
+        '''
+        Should this function be in the Database object?
+        '''
+        self.add_key_metadata(ecdsa_pub, 'name', name)
+        self.add_key_metadata(ecdsa_pub, 'rsa-pub', rsa_pub)
+
+    def deregister_key(self, ecdsa_pub):
+        '''
+        Should this function be in the Database object?
+        '''
+        self.remove_key_metadata(ecdsa_pub)
 
     def add_key_metadata(self, key, md_name, md_value):
-        logger.debug('insert_key: %s: {"%s" : "%s"}' % (key, md_name, md_value))
+        logger.debug('add_key_metadata: %s: \n'
+            '{"%s" : "%s"}' % (key, md_name, md_value))
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
             cursor.execute("INSERT INTO keys (key, md_name, md_value) VALUES "
@@ -162,6 +173,7 @@ class FlaskError(Exception):
         
 class MissingParameterError(FlaskError): pass
 class AuthorizationError(FlaskError): pass
+class ApplicationError(FlaskError): pass
 
 app = Flask(__name__)
 database = Database()
@@ -225,11 +237,12 @@ def clear_db(pub=None):
 
 @app.route('/register', methods=['POST'])
 def register_key():
-    pub = b64decode(get_param('pub'))
+    ecdsa_pub = b64decode(get_param('ecdsa-pub'))
+    rsa_pub = get_param('rsa-pub')
     name = get_param('name')
-    if database.has_key(pub):
+    if database.has_key(ecdsa_pub):
         return 'OK'
-    database.register_key(pub, name)
+    database.register_key(ecdsa_pub, name, rsa_pub)
     # perhaps some error handling required???
     return jsonify(success=True)
 
