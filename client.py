@@ -28,10 +28,13 @@ class SecureShareClient(object):
                 f.write(self.sk.to_string())
             needs_register = True
         self.url = { 
-            'add_contact' : '/'.join([server_url, 'add_contact']),
-            'list_contacts' : '/'.join([server_url, 'list_contacts']),
-            'clear_db' : '/'.join([server_url, 'clear_db']),
-            'register' : '/'.join([server_url, 'register'])
+            'add_contact' :         '/'.join([server_url, 'add_contact']),
+            'list_contacts' :       '/'.join([server_url, 'list_contacts']),
+            'clear_db' :            '/'.join([server_url, 'clear_db']),
+            'register' :            '/'.join([server_url, 'register']),
+            'add_key_metadata' :    '/'.join([server_url, 'add_key_metadata']),
+            'get_key_metadata' :    '/'.join([server_url, 'get_key_metadata']),
+            'remove_key_metadata' : '/'.join([server_url, 'remove_key_metadata'])
         }
         
         self.name = name
@@ -66,6 +69,37 @@ class SecureShareClient(object):
 
     def clear_db(self):
         r = requests.get(self.url['clear_db'], auth=ECDSAAuth(self.vk, self.sk))
+        r.raise_for_status()
+
+    def add_key_metadata(self, key, md_name, md_value):
+        data = {
+            'Key' : key,
+            'Name' : md_name,
+            'Value' : md_value
+        }
+        r = requests.post(self.url['add_key_metadata'], json=data,
+            auth=ECDSAAuth(self.vk, self.sk))
+        r.raise_for_status()
+
+    def get_key_metadata(self, key):
+        data = {
+            'Key' : key
+        }
+        r = requests.post(self.url['get_key_metadata'], json=data,
+            auth=ECDSAAuth(self.vk, self.sk))
+        r.raise_for_status()
+        return r.json()
+
+    def remove_key_metadata(self, key, md_name=None, md_value=None):
+        data = {
+            'Key' : key
+        }
+        if md_name is not None:
+            data['Name'] = md_name
+        if md_value is not None:
+            data['Value'] = md_value
+        r = requests.post(self.url['remove_key_metadata'], json=data,
+            auth=ECDSAAuth(self.vk, self.sk))
         r.raise_for_status()
 
 class ECDSAAuth(requests.auth.AuthBase):

@@ -38,7 +38,7 @@ class Database(object):
         logger.debug('Creating keys table')
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
-            cursor.execute('''CREATE TABLE keys (crypto_key text, key text, value text)''')
+            cursor.execute('''CREATE TABLE keys (key text, md_name text, md_value text)''')
             conn.commit()
 
     def create_nonce_table(self):
@@ -83,22 +83,55 @@ class Database(object):
         logger.debug('has_key: %s' % key)
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
-            if cursor.execute('SELECT crypto_key from keys where crypto_key=?', 
+            if cursor.execute('SELECT key from keys where key=?', 
                     (key,)).fetchone() is None:
                 return False
             else:
                 return True
 
     def register_key(self, key, name):
-        self.insert_key(key, 'name', name)
+        self.add_key_metadata(key, 'name', name)
 
-    def insert_key(self, crypto_key, key, value):
-        logger.debug('insert_key: %s: {"%s" : "%s"}')
+    def add_key_metadata(self, key, md_name, md_value):
+        logger.debug('insert_key: %s: {"%s" : "%s"}' % (key, md_name, md_value))
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO keys (crypto_key, key, value) VALUES "
-                "(?, ?, ?)", (crypto_key, key, value))
+            cursor.execute("INSERT INTO keys (key, md_name, md_value) VALUES "
+                "(?, ?, ?)", (key, md_name, md_value))
             conn.commit()
+
+    def get_key_metadata(self, key):
+        logger.debug('get_key_metadata: %s' % key)
+        with sqlite3.connect(self.path) as conn:
+            cursor = conn.cursor()
+            cursor = cursor.execute('SELECT md_name, md_value from keys '
+                'where key=?', (key,))
+            metadata = cursor.fetchall()
+            return_metadata = {}
+            for name, value in metadata:
+                if name in return_metadata.keys():
+                    return_metadata[name] += (value,)
+                else:
+                    return_metadata[name] = (value,)
+            logger.debug(return_metadata)
+        return return_metadata
+
+    def remove_key_metadata(self, key, md_name=None, md_value=None):
+        logger.debug('remove_key_metadata: %s' % key)
+        with sqlite3.connect(self.path) as conn:
+            cursor = conn.cursor()
+            query = 'DELETE from keys where key=?'
+            params = (key,)
+            if md_name:
+                query = ' AND '.join([query, 'md_name=?'])
+                params += (md_name,)
+            if md_value:
+                query = ' AND '.join([query, 'md_value=?'])
+                params += (md_value,)
+            logger.debug(query)
+            logger.debug(params)
+            data = cursor.execute(query, params)
+            logger.debug(data)
 
     def use_nonce(self, nonce):
         logger.debug('use_nonce: %s' % nonce)
@@ -188,7 +221,7 @@ def list_contacts(pub=None):
 @authorized
 def clear_db(pub=None):
     database.clear_db()
-    return 'OK'
+    return jsonify(success=True)
 
 @app.route('/register', methods=['POST'])
 def register_key():
@@ -198,20 +231,49 @@ def register_key():
         return 'OK'
     database.register_key(pub, name)
     # perhaps some error handling required???
-    return 'OK'
+    return jsonify(success=True)
 
+@app.route('/add_key_metadata', methods=['POST'])
+@authorized
+def add_key_metadata(pub=None):
+    key = get_json_value('Key')
+    md_name = get_json_value('Name')
+    md_value = get_json_value('Value')
+    database.add_key_metadata(key, md_name, md_value)
+    return jsonify(success=True)
 
+@app.route('/remove_key_metadata', methods=['POST'])
+@authorized
+def remove_key_metadata(pub=None):
+    key = get_json_value('Key')
+    try:
+        md_name = get_json_value('Name')
+    except MissingParameterError:
+        md_name = None
+    try:
+        md_value = get_json_value('Value')
+    except MissingParameterError:
+        md_value = None
+    database.remove_key_metadata(key, md_name, md_value)
+    return jsonify(success=True)
+
+@app.route('/get_key_metadata', methods=['POST'])
+@authorized
+def get_key_metadata(pub=None):
+    key = get_json_value('Key')
+    metadata = database.get_key_metadata(key)
+    return jsonify(metadata)
 
 def get_json_value(key):
     try: 
         return request.get_json()[key]
     except KeyError:
-        raise MissingParameterError('Missing parameter: %s' % key,
+        raise MissingParameterError('Missing required JSON parameter: %s' % key,
             payload={'param' : key})
 
 def get_param(p):
     try:
         return request.args.get(p)
     except KeyError:
-        raise MissingParameterError('Missing parameter: %s' % p,
+        raise MissingParameterError('Missing required header parameter: %s' % p,
             payload={'param' : key})
