@@ -18,11 +18,12 @@ CURVE=NIST256p
 class Database(object):
 
     def __init__(self, path='contacts.db'):
+        logger.debug('Initializing database')
         self.path = path
         if not exists(self.path):
             logger.debug('Creating database')
             self.create_contacts_table()
-            self.create_pubs_table()
+            self.create_keys_table()
             self.create_nonce_table()
 
     def create_contacts_table(self):
@@ -33,11 +34,11 @@ class Database(object):
                                 (name text, address text, phone text, email text, source text, key text)''')
             conn.commit()
 
-    def create_pubs_table(self):
-        logger.debug('Creating pubs table')
+    def create_keys_table(self):
+        logger.debug('Creating keys table')
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
-            cursor.execute('''CREATE TABLE pubs (pub text, key text, value text)''')
+            cursor.execute('''CREATE TABLE keys (crypto_key text, key text, value text)''')
             conn.commit()
 
     def create_nonce_table(self):
@@ -71,29 +72,29 @@ class Database(object):
         return contacts
 
     def clear_db(self):
-        logger.debug('Clearing tables in database: contacts, pubs, nonces')
+        logger.debug('Clearing tables in database: contacts, keys, nonces')
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
             cursor.execute('DELETE from contacts')
-            cursor.execute('DELETE from pubs')
+            cursor.execute('DELETE from keys')
             cursor.execute('DELETE from nonces')
 
-    def has_pub(self, pub):
-        logger.debug('has_pub: %s' % pub)
+    def has_key(self, key):
+        logger.debug('has_key: %s' % key)
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
-            if cursor.execute('SELECT pub from pubs where pub=?', 
-                    (pub,)).fetchone() is None:
+            if cursor.execute('SELECT crypto_key from keys where crypto_key=?', 
+                    (key,)).fetchone() is None:
                 return False
             else:
                 return True
 
-    def register_pub(self, pub, name):
-        logger.debug('register_pub: %s - %s' % (name, pub))
+    def register_key(self, key, name):
+        logger.debug('register_key: %s - %s' % (name, key))
         with sqlite3.connect(self.path) as conn:
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO pubs (pub, key, value) VALUES "
-                "(?, ?, ?)", (pub, 'name', name))
+            cursor.execute("INSERT INTO keys (crypto_key, key, value) VALUES "
+                "(?, ?, ?)", (key, 'name', name))
             conn.commit()
 
     def use_nonce(self, nonce):
@@ -104,10 +105,10 @@ class Database(object):
                     (nonce,)).fetchone() is None:
                 cursor.execute('INSERT into nonces VALUES (?)', (nonce,))
             else:
-                raise AuthorizationError('Nonce re-use')
+                raise AuthorizationError('Nonce has been used before')
             conn.commit()
 
-class MissingParameterError(Exception):
+class FlaskError(Exception):
     """
     http://flask.pocoo.org/docs/1.0/patterns/apierrors/
     """
@@ -122,22 +123,9 @@ class MissingParameterError(Exception):
         rv = dict(self.payload or ())
         rv['message'] = self.message
         return rv
-
-class AuthorizationError(Exception):
-    """
-    http://flask.pocoo.org/docs/1.0/patterns/apierrors/
-    """
-    
-    def __init__(self, message, status_code=None, payload=None):
-        Exception.__init__(self)
-        if status_code is not None:
-            self.status_code = status_code
-        self.payload = payload
-
-    def to_dict(self):
-        rv = dict(self.payload or ())
-        rv['message'] = self.message
-        return rv
+        
+class MissingParameterError(FlaskError): pass
+class AuthorizationError(FlaskError): pass
 
 app = Flask(__name__)
 database = Database()
@@ -149,7 +137,7 @@ def authorized(fn):
         logger.debug('Authorizing request')
         if 'Pub' not in request.headers:
             raise MissingParameterError('Missing authorization parameter: '
-                'ECDSA pub')
+                'ECDSA public key')
         if 'Nonce' not in request.headers:
             raise MissingParameterError('Missing authorization parameter: '
                 'Nonce')
@@ -157,18 +145,18 @@ def authorized(fn):
             raise MissingParameterError('Missing authorization parameter: '
                 'Signature')
 
-        pub = b64decode(request.headers['Pub'].encode())
+        key = b64decode(request.headers['Pub'].encode())
         nonce = request.headers['Nonce'].encode()
         signature = b64decode(request.headers['Signature'].encode())
 
-        if not database.has_pub(pub):
-            raise AuthorizationError('Pub is unregistered')
+        if not database.has_key(key):
+            raise AuthorizationError('ECDSA public key is unregistered')
         database.use_nonce(nonce) # throws exception on re-use
 
-        vk = VerifyingKey.from_string(pub, curve=CURVE)
+        vk = VerifyingKey.from_string(key, curve=CURVE)
         vk.verify(signature, nonce)
 
-        return fn(pub=pub)
+        return fn(pub=key)
     return wrapper
 
 @app.route('/add_contact', methods=['POST'])
@@ -200,12 +188,12 @@ def clear_db(pub=None):
     return 'OK'
 
 @app.route('/register', methods=['POST'])
-def register_pub():
+def register_key():
     pub = b64decode(get_param('pub'))
     name = get_param('name')
-    if database.has_pub(pub):
+    if database.has_key(pub):
         return 'OK'
-    database.register_pub(pub, name)
+    database.register_key(pub, name)
     # perhaps some error handling required???
     return 'OK'
 
